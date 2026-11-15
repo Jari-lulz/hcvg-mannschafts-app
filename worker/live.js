@@ -24,7 +24,12 @@ async function league(group, ts) {
     if (m.live) {   // Spielminute aus der Ereignisliste (größte Spielsekunde)
       try {
         const e = await (await fetch(`${API}/events/${m.meetingID}`, { headers: UA })).json();
-        for (const x of Array.isArray(e) ? e : []) if (x.second > sec) sec = x.second;
+        const list = Array.isArray(e) ? e : (e && Array.isArray(e.events) ? e.events : []);   // Antwort: { events: [...] }
+        let last = null;
+        for (const x of list) if (!last || +x.second > +last.second) last = x;
+        // Nur verwenden, wenn das letzte Ereignis zum aktuellen Stand passt. Manche Zeitnehmer
+        // tragen nur den Spielstand ein, nicht jedes Tor als Ereignis – dann wäre die Minute falsch.
+        if (last && +last.pointsHome === +m.matchesHome && +last.pointsGuest === +m.matchesGuest) sec = +last.second || 0;
       } catch (_) {}
     }
     out.push([m.teamHome, m.teamGuest, new Date(at).toISOString().replace(".000", ""),

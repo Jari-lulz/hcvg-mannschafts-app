@@ -530,12 +530,16 @@ function toGame(r,lg){
   if(time==="00:00" && !loc) time="";
   let dt=null;
   if(date){const [d,m,y]=date.split(".").map(Number);const [hh,mm]=(time||"00:00").split(":").map(Number);dt=new Date(y,m-1,d,hh,mm);}
-  // nuLiga trägt schon während des Spiels einen vorläufigen Stand ein (z. B. "0:0").
-  // Als Ergebnis zählt er erst mit Spielbericht (mid) – oder wenn das Spiel lange vorbei ist.
-  const fin=resFinal(res,mid,dt);
+  // nuLiga trägt schon während des Spiels einen vorläufigen Stand ein (z. B. "0:0"), oft schon mit Spielbericht-ID.
+  // Als Ergebnis zählt er erst nach dem Abpfiff mit Spielbericht (mid) – oder wenn das Spiel lange vorbei ist.
+  const fin=resFinal(res,mid,dt,lg);
   return {dt,date,time,loc,home,away,res:fin?res:"",prov:fin?"":res,note:note||"",mid,ref:ref||"",lg,mine:home===US||away===US};
 }
-function resFinal(res,mid,dt){ return !!res&&(!!mid||!dt||Date.now()>dt.getTime()+6*3600e3); }
+function resFinal(res,mid,dt,lg){
+  if(!res) return false; if(!dt) return true;
+  const n=Date.now(), t=dt.getTime();
+  return n>t+6*3600e3 || (!!mid && n>t+((LEN[lg]||50)+PAUSE+15)*60e3);   // Spielzeit + Pause + 15 Min. Puffer
+}
 const ALL = Object.entries(LEAGUES).flatMap(([k,L])=>L.games.map(r=>toGame(r,k)));
 const report = g => g.mid ? LEAGUES[g.lg].reports?.[g.mid] : null;
 
@@ -775,9 +779,10 @@ function dataAt(){ const m=/(\d+)\.(\d+)\.(\d+),\s*(\d+):(\d+)/.exec(DATA.update
 function cardState(g){
   const n=now().getTime(), start=g.dt.getTime(), due=start+(LEN[g.lg]+PAUSE)*60e3, lv=liveFor(g), at=Math.max(dataAt(),LIVE_AT);
   const res=(h,a)=>{ const us=g.home===US?h-a:a-h; return us>0?"Sieg":us<0?"Niederlage":"Remis"; };
-  if(g.res){ const o=outcome(g); return {k:"end",score:g.res.replace(":"," : "),label:"Endstand",sub:o==="w"?"Sieg":o==="l"?"Niederlage":o?"Remis":""}; }
   const stand=lv&&lv.sec?` · ${Math.min(Math.ceil(lv.sec/60),LEN[g.lg])}. Min.`:at?` · Stand ${hhmm(new Date(at))}`:"";
+  // Meldet der Live-Ticker "läuft", gewinnt er immer, auch gegen einen vorläufigen nuLiga-Stand.
   if(lv&&lv.live) return {k:"live",score:`${lv.h} : ${lv.a}`,label:"Live",sub:(lv.hh+lv.ha>0?`Halbzeit ${lv.hh}:${lv.ha}`:"1. Halbzeit")+stand};
+  if(g.res){ const o=outcome(g); return {k:"end",score:g.res.replace(":"," : "),label:"Endstand",sub:o==="w"?"Sieg":o==="l"?"Niederlage":o?"Remis":""}; }
   if(n<start) return {k:"pre"};
   if(lv&&lv.h+lv.a>0){
     if(at>=due) return {k:"end",score:`${lv.h} : ${lv.a}`,label:"Endstand",sub:res(lv.h,lv.a)};
@@ -1440,7 +1445,7 @@ const LIVE_URL = "https://hcvg-live.hcvg-mannschaft.workers.dev/";   // Cloudfla
 let liveTick = 0;
 function liveWindow(){
   const n=Date.now();
-  return ["C","D"].some(k=>{ const g=cardGame(k); if(!g||g.res) return false; const t=g.dt.getTime(); return n>t-15*60e3&&n<t+(LEN[k]+115)*60e3; });
+  return ["C","D"].some(k=>{ const g=cardGame(k); if(!g||!g.dt) return false; const lv=liveFor(g); if(g.res&&!(lv&&lv.live)) return false; const t=g.dt.getTime(); return n>t-15*60e3&&n<t+(LEN[k]+115)*60e3; });
 }
 function redrawCards(){ if(current!=="us") return; const els=[...view.querySelectorAll("[data-card]")]; cardOrder().forEach((k,i)=>{ if(els[i]) els[i].outerHTML=nextCard(k); }); }
 async function refreshWorker(){
@@ -1463,7 +1468,7 @@ async function refreshData(){
       const nl=j.leagues&&j.leagues[k]; if(!nl) continue;
       if(newer) LEAGUES[k].live=nl.live||[];
       const g=cardGame(k);
-      if(g&&!g.res){ const row=(nl.games||[]).find(r=>r[3]===g.home&&r[4]===g.away&&r[5]); if(row){ if(resFinal(row[5],row[7],g.dt)){ g.res=row[5]; g.mid=row[7]; g.prov=""; } else g.prov=row[5]; } }
+      if(g&&!g.res){ const row=(nl.games||[]).find(r=>r[3]===g.home&&r[4]===g.away&&r[5]); if(row){ if(resFinal(row[5],row[7],g.dt,k)){ g.res=row[5]; g.mid=row[7]; g.prov=""; } else g.prov=row[5]; } }
     }
   }catch(e){}
 }

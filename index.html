@@ -22,6 +22,9 @@
 <!-- Name und Symbol beim Speichern auf dem Startbildschirm -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="HC Vorpommern-Greifswald">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="application-name" content="HC Vorpommern-Greifswald">
 <meta name="theme-color" content="#16305e">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -846,8 +849,11 @@ function cakeDue(field="cake"){
   const out=[], nowT=Date.now();
   for(const k of ["C","D"]){
     const last=played(ALL.filter(g=>g.lg===k&&g.mine))[0];
-    const name=last&&(LEAGUES[k][field]||{})[last.mid];
-    if(name&&nowT-last.dt.getTime()<=CAKE_FRESH_DAYS*864e5) out.push({name,k,dt:last.dt,opp:sn(last.home===US?last.away:last.home),home:last.home===US});
+    if(!last||nowT-last.dt.getTime()>CAKE_FRESH_DAYS*864e5) continue;
+    const name=(LEAGUES[k][field]||{})[last.mid]||"";
+    // Auch ohne Namen fällig, wenn wir 30 bzw. 40 Tore haben (Zeitnehmer hat nicht jedes Tor einzeln erfasst).
+    const ours=+(last.res.split(":")[last.home===US?0:1])||0;
+    if(name||ours>=(field==="capri"?40:30)) out.push({name,k,dt:last.dt,opp:sn(last.home===US?last.away:last.home),home:last.home===US});
   }
   return out;
 }
@@ -879,13 +885,14 @@ const CAKE_EMPTY=[
   "Mehl, Eier, Zucker: alles da. Nur das 30. Tor fehlt noch."
 ];
 // Kleine Zeile auf der Startseite: immer sichtbar, zeigt wer den nächsten Kuchen mitbringt (höchstens D und C)
+const NO_NAME="Wer das Tor geworfen hat, steht noch nicht im Live-Ticker. Der Name erscheint hier, sobald er nachgetragen ist.";
 function cakeTile(){
   const due=cakeDue();
   if(!due.length){
     return `<section class="cakeline" aria-label="Kuchen-Alarm"><span class="em" aria-hidden="true">🎂</span><div><small>Kuchen-Alarm · 30. Tor</small><b>Noch frei!</b><span>${esc(pickLine(CAKE_EMPTY))}</span></div></section>`;
   }
   // Eine Kachel je Jugend – haben C und D beide das 30. Tor geschafft, erscheinen zwei Kacheln.
-  return due.map(c=>`<section class="cakeline due" aria-label="Kuchen-Alarm ${c.k}-Jugend"><span class="em" aria-hidden="true">🎂</span><div><small><i class="lgt">${c.k}-Jugend</i>Kuchen-Alarm · 30. Tor</small><b>${esc(pName(c.name,US))} bringt Kuchen mit!</b><span>Glückwunsch zum 30. Tor gegen ${esc(c.opp)}! ${esc(cakeLine(c))}</span></div></section>`).join("");
+  return due.map(c=>`<section class="cakeline due" aria-label="Kuchen-Alarm ${c.k}-Jugend"><span class="em" aria-hidden="true">🎂</span><div><small><i class="lgt">${c.k}-Jugend</i>Kuchen-Alarm · 30. Tor</small><b>${c.name?esc(pName(c.name,US))+" bringt Kuchen mit!":"Wer bringt Kuchen mit?"}</b><span>Glückwunsch zum 30. Tor gegen ${esc(c.opp)}! ${c.name?esc(cakeLine(c)):NO_NAME}</span></div></section>`).join("");
 }
 
 /* Capri-Sonne-Regel (Wunsch der Mädels): Wer in einem Spiel das 40. Tor wirft, bringt einen 10er-Träger Capri-Sonne mit.
@@ -915,7 +922,7 @@ function capriTile(){
     return `<section class="cakeline capri" aria-label="Capri-Sonne-Alarm"><span class="em" aria-hidden="true">🧃</span><div><small>Capri-Sonne-Alarm · 40. Tor</small><b>Noch frei!</b><span>${esc(pickLine(CAPRI_EMPTY))}</span></div></section>`;
   }
   const line=c=>pickLine(CAPRI_LINES,c.k==="D"?1:0);
-  return due.map(c=>`<section class="cakeline capri due" aria-label="Capri-Sonne-Alarm ${c.k}-Jugend"><span class="em" aria-hidden="true">🧃</span><div><small><i class="lgt">${c.k}-Jugend</i>Capri-Alarm · 40. Tor</small><b>${esc(pName(c.name,US))} bringt Capri-Sonne mit!</b><span>Glückwunsch zum 40. Tor gegen ${esc(c.opp)}! Ein 10er-Träger, bitte. ${esc(line(c))}</span></div></section>`).join("");
+  return due.map(c=>`<section class="cakeline capri due" aria-label="Capri-Sonne-Alarm ${c.k}-Jugend"><span class="em" aria-hidden="true">🧃</span><div><small><i class="lgt">${c.k}-Jugend</i>Capri-Alarm · 40. Tor</small><b>${c.name?esc(pName(c.name,US))+" bringt Capri-Sonne mit!":"Wer bringt Capri-Sonne mit?"}</b><span>Glückwunsch zum 40. Tor gegen ${esc(c.opp)}! Ein 10er-Träger, bitte. ${c.name?esc(line(c)):NO_NAME}</span></div></section>`).join("");
 }
 
 // Kalender zum Abonnieren – die Dateien erzeugt tools/update-data.ps1
@@ -960,6 +967,10 @@ function powertime(k,p){
 /* "Was ist neu?" (Knopf ✨ oben rechts). Neuester Eintrag zuerst. Neuer Eintrag = roter Punkt am Knopf,
    bis man ihn einmal geöffnet hat (localStorage hcvg-news). Texte einfach halten, für Eltern und Großeltern. */
 const NEWS=[
+ {id:"2026-11-15b",date:"15. November 2026, abends",title:"Schneller Kuchen, App aufs Handy",items:[
+  ["🎂","Kuchen- und Capri-Alarm gleich nach dem Spiel","Die Kacheln erscheinen jetzt kurz nach dem Tor und nicht erst Stunden später. Ist die Werferin noch nicht eingetragen, steht dort „Wer bringt Kuchen mit?“, der Name folgt."],
+  ["📲","App auf den Startbildschirm","Auf der Startseite steht jetzt, wie man die App auf iPhone oder Android als Symbol ablegt. Dann öffnet sie sich mit einem Tipp, wie eine richtige App."]
+ ]},
  {id:"2026-11-15",date:"15. November 2026",title:"Live dabei, auch von zu Hause",items:[
   ["📡","Spielstand fast in Echtzeit","Während des Spiels erneuert sich der Spielstand etwa alle 30 Sekunden von selbst, mit Spielminute und Halbzeitstand. Gedacht für alle, die nicht in der Halle sein können: verletzte Spielerinnen, Geschwister, Oma und Opa. Einfach die App offen lassen, neu laden ist nicht nötig."],
   ["✅","Endstand erst nach dem Abpfiff","Solange das Spiel läuft, steht dort „Live“ oder „Letzter Stand“ mit Uhrzeit. So denkt niemand mehr, das Spiel sei schon vorbei."],
@@ -1001,11 +1012,22 @@ function viewKader(){
 
 // App weitergeben (Oma, Opa, Tante, Freunde): teilt nur den Link mit kurzem Text
 const shareAppTile=()=>`<button class="shareapp" data-shareapp="1"><span class="ic">${ICON_SHARE}</span><span><b>App teilen</b><small>Mit Oma, Opa, Familie &amp; Freunden, z. B. per WhatsApp</small></span></button>`;
+// Anleitung "Auf den Startbildschirm" – nur im Browser, nicht wenn die App schon vom Startbildschirm geöffnet wurde
+const IS_HOME=(()=>{ try{ return navigator.standalone===true||matchMedia("(display-mode: standalone)").matches; }catch(e){ return false; } })();
+const ICON_HOME='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 8v6M9 11h6"/></svg>';
+const homeTile=()=>IS_HOME?"":`<section class="cal" aria-label="App auf den Startbildschirm legen">
+    <div class="top">${ICON_HOME}<div><h2>App auf den Startbildschirm</h2><span class="note">Dann öffnet sie sich mit einem Tipp wie eine richtige App, mit Vereinslogo und ohne Adresszeile.</span></div></div>
+    <details class="howto"><summary>So geht's</summary>
+      <p><b>iPhone / iPad:</b> Die Seite in <b>Safari</b> öffnen. Unten auf das Teilen-Symbol tippen (Quadrat mit Pfeil nach oben), dann <b>„Zum Home-Bildschirm“</b> und oben rechts <b>„Hinzufügen“</b>. Falls der Punkt fehlt: in der Liste ganz nach unten wischen.</p>
+      <p><b>Android:</b> In Chrome oben rechts auf die drei Punkte tippen, dann <b>„Zum Startbildschirm hinzufügen“</b> oder <b>„App installieren“</b>.</p>
+      <p class="note">Aus WhatsApp heraus geht das nicht: dort zuerst über die drei Punkte bzw. das Kompass-Symbol „Im Browser öffnen“ wählen.</p>
+    </details>
+  </section>`;
 function viewUs(){
   const hero=`<figure class="hero" style="margin:0" data-kader="1" role="button" tabindex="0" aria-label="Mannschaft anzeigen"><img src="img/team-kreis.jpg" alt="Die Mädels im Mannschaftskreis vor dem Spiel" width="900" height="1032">
     <figcaption class="cap"><b><i style="--w:0">Power.</i> <i style="--w:1">Zusammenhalt.</i> <em style="--w:2">Teamwork.</em></b><span>Wir gemeinsam für den Sieg · <u>Mannschaft ansehen ›</u></span></figcaption></figure>`;
   // .fold = erster Bildschirm (Foto + beide Spiele); wird per sizeFold() auf Bildschirmhöhe gestreckt
-  return `<div class="fold">${hero}${cardOrder().map(nextCard).join("")}</div>` + cakeTile() + capriTile() + shareAppTile() + trainingTile() + calTile();
+  return `<div class="fold">${hero}${cardOrder().map(nextCard).join("")}</div>` + cakeTile() + capriTile() + shareAppTile() + homeTile() + trainingTile() + calTile();
 }
 
 const st = { filterMine:{D:false,C:false}, sub:{D:"tab",C:"tab"}, sort:{D:"g",C:"g"}, topAll:{D:false,C:false}, topUs:{D:false,C:false}, ana:"D", anaMode:"team", ligaUs:false, cal:"CD", cmp:{D:"gf",C:"gf"} };
@@ -1443,17 +1465,33 @@ window.addEventListener("resize",()=>{ if(current==="us"&&window.innerWidth!==fo
 // Getauscht werden nur die beiden Spielkarten – die Seite springt dabei nicht.
 const LIVE_URL = "https://hcvg-live.hcvg-mannschaft.workers.dev/";   // Cloudflare-Worker (worker/live.js), leer = nur data.js
 let liveTick = 0;
-function liveWindow(){
+// wide: beim Öffnen der App bis 6 Std. nach Anwurf einmal nachsehen (Endstand, Kuchen/Capri vor dem nächsten Datenlauf)
+function liveWindow(wide){
   const n=Date.now();
-  return ["C","D"].some(k=>{ const g=cardGame(k); if(!g||!g.dt) return false; const lv=liveFor(g); if(g.res&&!(lv&&lv.live)) return false; const t=g.dt.getTime(); return n>t-15*60e3&&n<t+(LEN[k]+115)*60e3; });
+  return ["C","D"].some(k=>{ const g=cardGame(k); if(!g||!g.dt) return false; const t=g.dt.getTime(); return n>t-15*60e3&&n<t+(wide?6*60:LEN[k]+115)*60e3; });
 }
+// Vermittler-Zeile → Spiel: Spiel-ID, Werferin 30./40. Tor, und nach dem Abpfiff der Endstand.
+// nuLigas Stand in data.js hinkt oft hinterher (nächster Datenlauf erst nach 40–60 Min.).
+function applyWorker(k,rows){
+  for(const r of rows||[]){
+    const d=new Date(r[2]).toDateString();
+    const g=ALL.find(g=>g.lg===k&&g.home===r[0]&&g.away===r[1]&&g.dt&&g.dt.toDateString()===d); if(!g) continue;
+    if(r[9]&&!g.mid) g.mid=r[9];
+    const mid=g.mid||r[9];
+    if(mid&&r[10]) (LEAGUES[k].cake=LEAGUES[k].cake||{})[mid]=r[10];
+    if(mid&&r[11]) (LEAGUES[k].capri=LEAGUES[k].capri||{})[mid]=r[11];
+    const sum=r[3]+r[4], old=g.res?g.res.split(":").reduce((a,b)=>a+ +b,0):-1;
+    if(!r[5]&&sum>0&&Date.now()>g.dt.getTime()+(LEN[k]+PAUSE)*60e3&&sum>=old){ g.res=`${r[3]}:${r[4]}`; g.prov=""; }
+  }
+}
+const cakeSig=()=>JSON.stringify([cakeDue(),cakeDue("capri")]);
 function redrawCards(){ if(current!=="us") return; const els=[...view.querySelectorAll("[data-card]")]; cardOrder().forEach((k,i)=>{ if(els[i]) els[i].outerHTML=nextCard(k); }); }
 async function refreshWorker(){
   if(!LIVE_URL) return false;
   try{
     const j=await (await fetch(LIVE_URL,{cache:"no-store"})).json();
     if(!j.leagues) return false;
-    for(const k of ["C","D"]) if(j.leagues[k]) LEAGUES[k].live=j.leagues[k];
+    for(const k of ["C","D"]) if(j.leagues[k]){ LEAGUES[k].live=j.leagues[k]; applyWorker(k,j.leagues[k]); }
     LIVE_AT=j.t||Date.now();
     return true;
   }catch(e){ return false; }
@@ -1473,15 +1511,17 @@ async function refreshData(){
   }catch(e){}
 }
 async function refreshLive(force){
-  if(document.hidden||!liveWindow()) return;
+  if(document.hidden||!liveWindow(force)) return;
+  const before=cakeSig();
   const ok=await refreshWorker();
   if(force||!ok||liveTick%4===0) await refreshData();
   liveTick++;
-  redrawCards();
+  if(current==="us"&&cakeSig()!==before) render();   // neue Kuchen-/Capri-Kachel: Startseite neu aufbauen
+  else redrawCards();
 }
-setInterval(refreshLive,30e3);
+setInterval(()=>refreshLive(false),30e3);
 document.addEventListener("visibilitychange",()=>{ if(!document.hidden) refreshLive(true); });
-setTimeout(()=>refreshLive(false),1500);
+setTimeout(()=>refreshLive(true),1500);
 function render(){
   document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-selected",b.dataset.view===current));
   const tk=current==="D"||current==="C"?current:current==="ana"?st.ana:"";

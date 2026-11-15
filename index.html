@@ -33,6 +33,8 @@
   color-scheme:light dark; /* sagt dem Browser: App hat eigenen Dunkelmodus, nicht selbst umfärben */
   --bg:#eef1f6; --surface:#ffffff; --ink:#0f1c33; --muted:#5a6680; --line:#d6dce8;
   --court:#16305e; --court-ink:#ffffff; --tape:#f2c230; --tape-ink:#1b1400;
+  /* Jugend-Farben: C = dunkles Blau, D = helleres Blau (Karten, Reiter, Jugend-Seiten) */
+  --court-c:#16305e; --court-d:#2a6fba; --accent-c:#16305e; --accent-d:#2a6fba;
   --us:#e6edfb; --win:#1e8a4c; --loss:#c23b3b; --draw:#8a6d1e;
   --accent:var(--court); --bar-them:#b9c3d6;
   --them:#c0392b; --on-them:#ffffff; --ours:#1e8a4c; --on-ours:#ffffff; --badge:var(--court); --on-badge:#ffffff;
@@ -42,10 +44,12 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0b1220; --surface:#131d31; --ink:#e8edf7; --muted:#9aa6bf; --line:#26324a;
   --court:#1c3a70; --court-ink:#ffffff; --tape:#f2c230; --tape-ink:#1b1400;
+  --court-c:#1c3a70; --court-d:#2f6db0; --accent-c:var(--tape); --accent-d:var(--tape);
   --us:#1a2a4a; --win:#4cc27e; --loss:#ff7a7a; --draw:#e0c068; --accent:var(--tape); --bar-them:#3a4866; --them:#ff8f8f; --on-them:#3b0909; --ours:#6fdc9c; --on-ours:#04240f; --badge:#f2c230; --on-badge:#1b1400; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0b1220; --surface:#131d31; --ink:#e8edf7; --muted:#9aa6bf; --line:#26324a;
   --court:#1c3a70; --court-ink:#ffffff; --tape:#f2c230; --tape-ink:#1b1400;
+  --court-c:#1c3a70; --court-d:#2f6db0; --accent-c:var(--tape); --accent-d:var(--tape);
   --us:#1a2a4a; --win:#4cc27e; --loss:#ff7a7a; --draw:#e0c068; --accent:var(--tape); --bar-them:#3a4866; --them:#ff8f8f; --on-them:#3b0909; --ours:#6fdc9c; --on-ours:#04240f; --badge:#f2c230; --on-badge:#1b1400; color-scheme:dark}
 *{box-sizing:border-box}
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -137,6 +141,11 @@ h3{font:700 17px/1.1 var(--display);text-transform:uppercase;letter-spacing:.04e
 .sub a:focus-visible{outline:3px solid var(--tape);outline-offset:2px}
 
 /* Scoreboard card */
+.tC{--court:var(--court-c);--accent:var(--accent-c)}
+.tD{--court:var(--court-d);--accent:var(--accent-d)}
+:root:not([data-theme="dark"]) .tC{--badge:var(--court-c)} :root:not([data-theme="dark"]) .tD{--badge:var(--court-d)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .tC,:root:not([data-theme="light"]) .tD{--badge:var(--tape)}}
+.seg button.tC:not([aria-selected="true"]),.seg button.tD:not([aria-selected="true"]){box-shadow:inset 0 -3px 0 var(--court)}
 .board{background:var(--court);color:var(--court-ink);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden}
 .board::after{content:"";position:absolute;right:-70px;top:-70px;width:200px;height:200px;border:3px dashed rgba(255,255,255,.18);border-radius:50%;pointer-events:none}
 .board .when{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
@@ -166,6 +175,8 @@ h3{font:700 17px/1.1 var(--display);text-transform:uppercase;letter-spacing:.04e
 .fold{display:flex;flex-direction:column;gap:10px}
 .fold figure.hero{flex:1 1 auto;max-height:min(46vw,260px)}
 .fold .board.nc{flex:1 1 auto;justify-content:space-evenly}
+.board.nc.hot{box-shadow:0 0 0 3px var(--tape),0 6px 22px rgba(242,183,5,.35)}
+.board.nc.hot::before{content:"";position:absolute;inset:0;background:linear-gradient(160deg,rgba(242,183,5,.16),transparent 55%);pointer-events:none}
 /* Kaderübersicht */
 .kader{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:6px}
 .kp2{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px;min-width:0}
@@ -440,8 +451,8 @@ table.lt th:last-child{padding-right:8px}
   <div class="switch">
     <div class="seg" role="tablist" aria-label="Ansicht">
       <button id="tab-us" role="tab" aria-selected="true" data-view="us">Start</button>
-      <button id="tab-D" role="tab" aria-selected="false" data-view="D">D-Jugend</button>
-      <button id="tab-C" role="tab" aria-selected="false" data-view="C">C-Jugend</button>
+      <button id="tab-D" class="tD" role="tab" aria-selected="false" data-view="D">D-Jugend</button>
+      <button id="tab-C" class="tC" role="tab" aria-selected="false" data-view="C">C-Jugend</button>
       <button id="tab-ana" role="tab" aria-selected="false" data-view="ana">Analyse</button>
     </div>
   </div>
@@ -757,10 +768,14 @@ function cardState(g){
   }
   return n<due+15*60e3?{k:"run",score:"– : –",label:"Spiel läuft",sub:"Spielstand folgt"}:{k:"wait",score:"– : –",label:"Spiel vorbei",sub:"Ergebnis folgt"};
 }
+// Reihenfolge der Spielkarten: Wer heute spielt, steht oben und leuchtet (Klasse "hot").
+// 0 = läuft gerade, 1 = heute noch, 3 = heute schon gespielt, 5 = nicht heute, 9 = kein Spiel.
+function cardRank(k){ const g=cardGame(k); if(!g||!g.dt) return 9; if(g.dt.toDateString()!==now().toDateString()) return 5; const c=cardState(g).k; return c==="live"||c==="run"?0:c==="pre"?1:3; }
+function cardOrder(){ const t=k=>{ const g=cardGame(k); return g&&g.dt?g.dt.getTime():Infinity; }; return ["C","D"].sort((a,b)=>cardRank(a)-cardRank(b)||(cardRank(a)<5?t(a)-t(b):0)); }
 function nextCard(k){
   const L=LEAGUES[k];
   const g=cardGame(k);
-  if(!g) return `<section class="board nc" data-card="${k}" aria-label="Nächstes Spiel ${k}-Jugend"><div class="when"><span class="lg">${k}-Jugend</span></div><p class="hall" style="margin:0">Zurzeit ist kein Spiel angesetzt.</p></section>`;
+  if(!g) return `<section class="board nc t${k}" data-card="${k}" aria-label="Nächstes Spiel ${k}-Jugend"><div class="when"><span class="lg">${k}-Jugend</span></div><p class="hall" style="margin:0">Zurzeit ist kein Spiel angesetzt.</p></section>`;
   const home=g.home===US, cs=cardState(g);
   // kompakte Karte: Kopfzeile mit Datum, Treff/Anwurf in einer Zeile, Halle einzeilig.
   // Ab Anwurf ersetzt der Spielstand die Zeile Treff/Anwurf in derselben Höhe.
@@ -772,7 +787,7 @@ function nextCard(k){
   const chip = cs.k==="live"||cs.k==="run" ? `<span class="count md">● Live</span>`
     : cs.k==="end"||cs.k==="wait" ? `<span class="count">Gespielt</span>`
     : `<span class="count${countdown(g.dt)==="Matchday"?" md":""}">${countdown(g.dt)==="Matchday"?"🔥 Matchday":countdown(g.dt)}</span>`;
-  return `<section class="board nc" data-card="${k}" aria-label="Nächstes Spiel ${k}-Jugend">
+  return `<section class="board nc t${k}${cardRank(k)<5?" hot":""}" data-card="${k}" aria-label="Nächstes Spiel ${k}-Jugend">
     <div class="when"><span class="lg">${k}-Jugend</span><span class="date">${WD[g.dt.getDay()]}, ${g.dt.getDate()}. ${MONL[g.dt.getMonth()]}</span>${chip}</div>
     ${times}
     <div class="match"><div class="team ${home?"us":""}">${esc(home?US:sn(g.home))}</div><div class="vs">VS</div><div class="team away ${home?"":"us"}">${esc(home?sn(g.away):US)}</div></div>
@@ -814,25 +829,37 @@ function cakeDue(field="cake"){
   return out;
 }
 const CAKE_LINES=[
-  "Der Rest der Mannschaft atmet auf – und hält beim nächsten Training schon die Gabel bereit.",
-  "Der Rest der Mannschaft atmet auf. Handball-Gesetz §30: Wer das 30. Tor wirft, backt. Einspruch zwecklos!",
-  "Der Rest der Mannschaft atmet auf und gibt schon mal die Bestellung auf: gern mit Schokolade!",
-  "Der Rest der Mannschaft atmet auf. Erst Torjägerin, jetzt Bäckerin – das nennt man Allrounderin."
+  "Der Rest der Mannschaft atmet auf und hält beim nächsten Training schon die Gabel bereit.",
+  "Handball-Gesetz §30: Wer das 30. Tor wirft, backt. Einspruch zwecklos!",
+  "Die Mannschaft gibt schon mal die Bestellung auf: gern mit Schokolade!",
+  "Erst Torjägerin, jetzt Bäckerin. Das nennt man Allrounderin.",
+  "Der Ball war schnell im Netz. Jetzt muss der Kuchen nur noch schnell in den Ofen.",
+  "Trainer-Tipp: Krümel zählen nicht als Gegentore.",
+  "Streusel, Schoko oder Käsekuchen? Hauptsache, er hält länger als die gegnerische Abwehr.",
+  "Die Torhüterinnen halten schon mal die Teller. Fangen können sie ja.",
+  "Wer so genau wirft, trifft bestimmt auch die richtige Backzeit.",
+  "Die Kabine duftet schon jetzt nach Sieg und Vanille.",
+  "Vorsicht beim Servieren: Kein Stück über die Seitenlinie!",
+  "Ein Kuchen für 30 Tore. Bei 60 Toren wird es eine Torte!"
 ];
-const cakeLine=c=>CAKE_LINES[[...c.name+c.k].reduce((s,ch)=>s+ch.charCodeAt(0),0)%CAKE_LINES.length];
-// Wenn gerade niemand dran ist – wechselt jede Woche
+// Sprüche wechseln bei jedem Öffnen der App (Zufall), C- und D-Kachel bekommen verschiedene.
+const LINE_SEED=Math.floor(Math.random()*1e6);
+const pickLine=(list,i=0)=>list[(LINE_SEED+i)%list.length];
+const cakeLine=c=>pickLine(CAKE_LINES,c.k==="D"?1:0);
+// Wenn gerade niemand dran ist (wechselt bei jedem Öffnen)
 const CAKE_EMPTY=[
   "Wer im nächsten Spiel das 30. Tor wirft, schwingt den Kochlöffel.",
-  "Der Ofen ist vorgeheizt – es fehlt nur noch das 30. Tor.",
+  "Der Ofen ist vorgeheizt. Es fehlt nur noch das 30. Tor.",
   "Die Gabeln liegen bereit. Das 30. Tor leider noch nicht.",
-  "Das Rezept liegt schon da. Gesucht: die Torschützin Nr. 30."
+  "Das Rezept liegt schon da. Gesucht: die Torschützin Nr. 30.",
+  "Die Kuchenplatte wartet im Schrank auf das 30. Tor.",
+  "Mehl, Eier, Zucker: alles da. Nur das 30. Tor fehlt noch."
 ];
 // Kleine Zeile auf der Startseite: immer sichtbar, zeigt wer den nächsten Kuchen mitbringt (höchstens D und C)
 function cakeTile(){
   const due=cakeDue();
   if(!due.length){
-    const wk=Math.floor(Date.now()/(7*864e5));
-    return `<section class="cakeline" aria-label="Kuchen-Alarm"><span class="em" aria-hidden="true">🎂</span><div><small>Kuchen-Alarm · 30. Tor</small><b>Noch frei!</b><span>${esc(CAKE_EMPTY[wk%CAKE_EMPTY.length])}</span></div></section>`;
+    return `<section class="cakeline" aria-label="Kuchen-Alarm"><span class="em" aria-hidden="true">🎂</span><div><small>Kuchen-Alarm · 30. Tor</small><b>Noch frei!</b><span>${esc(pickLine(CAKE_EMPTY))}</span></div></section>`;
   }
   // Eine Kachel je Jugend – haben C und D beide das 30. Tor geschafft, erscheinen zwei Kacheln.
   return due.map(c=>`<section class="cakeline due" aria-label="Kuchen-Alarm ${c.k}-Jugend"><span class="em" aria-hidden="true">🎂</span><div><small><i class="lgt">${c.k}-Jugend</i>Kuchen-Alarm · 30. Tor</small><b>${esc(pName(c.name,US))} bringt Kuchen mit!</b><span>Glückwunsch zum 30. Tor gegen ${esc(c.opp)}! ${esc(cakeLine(c))}</span></div></section>`).join("");
@@ -841,24 +868,30 @@ function cakeTile(){
 /* Capri-Sonne-Regel (Wunsch der Mädels): Wer in einem Spiel das 40. Tor wirft, bringt einen 10er-Träger Capri-Sonne mit.
    Werferin aus data.js: leagues[k].capri = {Bericht-ID: Name}. */
 const CAPRI_LINES=[
-  "Der Rest der Mannschaft hat schon Durst – Strohhalme bereithalten!",
+  "Der Rest der Mannschaft hat schon Durst. Strohhalme bereithalten!",
   "Handball-Gesetz §40: Wer das 40. Tor wirft, sorgt für Nachschub. Einspruch zwecklos!",
-  "Erst Torjägerin, jetzt Getränkewartin – das nennt man Allrounderin.",
-  "Pieks, schlürf, Sieg: Die ganze Mannschaft sagt schon mal Danke!"
+  "Erst Torjägerin, jetzt Getränkewartin. Das nennt man Allrounderin.",
+  "Pieks, schlürf, Sieg: Die ganze Mannschaft sagt schon mal Danke!",
+  "40 Tore machen durstig. Gut, dass jemand vorsorgt.",
+  "Wichtigste Regel: Den Strohhalm zu treffen ist schwerer als das Tor.",
+  "Zehn Packungen, zehn glückliche Gesichter. Rechnen kann die Mannschaft also auch.",
+  "Vorsicht beim Reinpieksen: Wer spritzt, muss wischen!",
+  "Nach so vielen Toren ist eine Erfrischung Pflicht. Prost, Mädels!",
+  "Die Trinkpause beim nächsten Training wird legendär."
 ];
 const CAPRI_EMPTY=[
   "Wer das 40. Tor wirft, bringt einen 10er-Träger Capri-Sonne mit.",
   "Die Strohhalme liegen bereit. Das 40. Tor leider noch nicht.",
-  "Nach 30 Toren gibt's Kuchen – nach 40 gibt's was zu trinken!",
-  "Gesucht: die Torschützin Nr. 40. Belohnung: durstige Teamkolleginnen."
+  "Nach 30 Toren gibt's Kuchen, nach 40 gibt's was zu trinken!",
+  "Gesucht: die Torschützin Nr. 40. Belohnung: durstige Teamkolleginnen.",
+  "Der Kühlschrank hat noch Platz. Es fehlt nur das 40. Tor."
 ];
 function capriTile(){
   const due=cakeDue("capri");
   if(!due.length){
-    const wk=Math.floor(Date.now()/(7*864e5));
-    return `<section class="cakeline capri" aria-label="Capri-Sonne-Alarm"><span class="em" aria-hidden="true">🧃</span><div><small>Capri-Sonne-Alarm · 40. Tor</small><b>Noch frei!</b><span>${esc(CAPRI_EMPTY[wk%CAPRI_EMPTY.length])}</span></div></section>`;
+    return `<section class="cakeline capri" aria-label="Capri-Sonne-Alarm"><span class="em" aria-hidden="true">🧃</span><div><small>Capri-Sonne-Alarm · 40. Tor</small><b>Noch frei!</b><span>${esc(pickLine(CAPRI_EMPTY))}</span></div></section>`;
   }
-  const line=c=>CAPRI_LINES[[...c.name+c.k].reduce((s,ch)=>s+ch.charCodeAt(0),0)%CAPRI_LINES.length];
+  const line=c=>pickLine(CAPRI_LINES,c.k==="D"?1:0);
   return due.map(c=>`<section class="cakeline capri due" aria-label="Capri-Sonne-Alarm ${c.k}-Jugend"><span class="em" aria-hidden="true">🧃</span><div><small><i class="lgt">${c.k}-Jugend</i>Capri-Alarm · 40. Tor</small><b>${esc(pName(c.name,US))} bringt Capri-Sonne mit!</b><span>Glückwunsch zum 40. Tor gegen ${esc(c.opp)}! Ein 10er-Träger, bitte. ${esc(line(c))}</span></div></section>`).join("");
 }
 
@@ -918,7 +951,7 @@ function viewUs(){
   const hero=`<figure class="hero" style="margin:0" data-kader="1" role="button" tabindex="0" aria-label="Mannschaft anzeigen"><img src="img/team-kreis.jpg" alt="Die Mädels im Mannschaftskreis vor dem Spiel" width="900" height="1032">
     <figcaption class="cap"><b><i style="--w:0">Power.</i> <i style="--w:1">Zusammenhalt.</i> <em style="--w:2">Teamwork.</em></b><span>Wir gemeinsam für den Sieg · <u>Mannschaft ansehen ›</u></span></figcaption></figure>`;
   // .fold = erster Bildschirm (Foto + beide Spiele); wird per sizeFold() auf Bildschirmhöhe gestreckt
-  return `<div class="fold">${hero}${nextCard("C")}${nextCard("D")}</div>` + cakeTile() + capriTile() + shareAppTile() + trainingTile() + calTile();
+  return `<div class="fold">${hero}${cardOrder().map(nextCard).join("")}</div>` + cakeTile() + capriTile() + shareAppTile() + trainingTile() + calTile();
 }
 
 const st = { filterMine:{D:false,C:false}, sub:{D:"tab",C:"tab"}, sort:{D:"g",C:"g"}, topAll:{D:false,C:false}, topUs:{D:false,C:false}, ana:"D", anaMode:"team", ligaUs:false, cal:"CD", cmp:{D:"gf",C:"gf"} };
@@ -1037,7 +1070,7 @@ function viewStats(k){
 
   // Kuchen-Chronik
   const cg=[...cakeGames(k),...cakeGames(k,"capri")].sort((a,b)=>b.dt-a.dt||(a.field==="capri"?-1:1));
-  html+=`<section class="sec"><h2>Kuchen- &amp; Capri-Chronik 🎂🧃</h2><div class="list">${cg.map(c=>`<div class="g"><div class="d">${c.dt.getDate()}. ${MON[c.dt.getMonth()]}<small>${esc(c.res)}</small></div><div class="mt"><div class="t">${c.field==="capri"?"🧃":"🎂"} ${esc(pName(c.name,US))}</div><div class="h">${c.field==="capri"?"40. Tor (Capri-Sonne)":"30. Tor (Kuchen)"} ${c.home?"gegen":"bei"} ${esc(c.opp)}</div></div><span></span></div>`).join("")||'<div class="empty">Noch kein Spiel mit 30 Toren – der Ofen bleibt kalt.</div>'}</div></section>`;
+  html+=`<section class="sec"><h2>Kuchen- &amp; Capri-Chronik 🎂🧃</h2><div class="list">${cg.map(c=>`<div class="g"><div class="d">${c.dt.getDate()}. ${MON[c.dt.getMonth()]}<small>${esc(c.res)}</small></div><div class="mt"><div class="t">${c.field==="capri"?"🧃":"🎂"} ${esc(pName(c.name,US))}</div><div class="h">${c.field==="capri"?"40. Tor (Capri-Sonne)":"30. Tor (Kuchen)"} ${c.home?"gegen":"bei"} ${esc(c.opp)}</div></div><span></span></div>`).join("")||'<div class="empty">Noch kein Spiel mit 30 Toren. Der Ofen bleibt kalt.</div>'}</div></section>`;
 
   html+=`<p class="note" style="margin:0">Alle Werte aus den genehmigten Spielberichten auf nuLiga. Namen sind zum Schutz der Kinder gekürzt.</p>`;
   return html;
@@ -1360,7 +1393,7 @@ function liveWindow(){
   const n=Date.now();
   return ["C","D"].some(k=>{ const g=cardGame(k); if(!g||g.res) return false; const t=g.dt.getTime(); return n>t-15*60e3&&n<t+(LEN[k]+115)*60e3; });
 }
-function redrawCards(){ if(current==="us") for(const k of ["C","D"]){ const el=view.querySelector(`[data-card="${k}"]`); if(el) el.outerHTML=nextCard(k); } }
+function redrawCards(){ if(current!=="us") return; const els=[...view.querySelectorAll("[data-card]")]; cardOrder().forEach((k,i)=>{ if(els[i]) els[i].outerHTML=nextCard(k); }); }
 async function refreshWorker(){
   if(!LIVE_URL) return false;
   try{
@@ -1397,6 +1430,8 @@ document.addEventListener("visibilitychange",()=>{ if(!document.hidden) refreshL
 setTimeout(()=>refreshLive(false),1500);
 function render(){
   document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-selected",b.dataset.view===current));
+  const tk=current==="D"||current==="C"?current:current==="ana"?st.ana:"";
+  view.classList.toggle("tD",tk==="D"); view.classList.toggle("tC",tk==="C");
   view.innerHTML = current==="us"?viewUs():current==="kader"?viewKader():current==="ana"?viewAnalysis():viewLeague(current);
   view.classList.remove("anim");
   if(animNext){ [...view.children].forEach((el,i)=>el.style.setProperty("--i",Math.min(i,8))); void view.offsetWidth; view.classList.add("anim"); }

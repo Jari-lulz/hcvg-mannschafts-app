@@ -62,6 +62,23 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 header{padding-top:6px;display:flex;align-items:center;gap:10px}
 .theme{margin-left:auto;flex:none;width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer}
 .theme svg{width:22px;height:22px}
+.news{position:relative}
+.news+.theme{margin-left:0}
+@media (max-width:600px){header{gap:7px} .theme{width:34px;height:34px} .theme svg{width:20px;height:20px} body header h1{font-size:clamp(15px,4.55vw,26px)} body header .eyebrow{font-size:9.5px;letter-spacing:.01em}}
+.news .ndot{position:absolute;top:1px;right:1px;width:11px;height:11px;border-radius:50%;background:var(--loss);border:2px solid var(--surface);display:none}
+.news.unseen .ndot{display:block}
+.news[aria-pressed="true"]{background:var(--court);color:var(--court-ink);border-color:var(--court)}
+.nw{display:flex;flex-direction:column;gap:12px}
+.nw .nh{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nw .nh h3{font:800 20px/1.1 var(--display);text-transform:uppercase;letter-spacing:.02em;margin:0}
+.nw .nd{font:700 12px/1 var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.nw .nb{font:700 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;background:var(--loss);color:#fff;padding:4px 6px;border-radius:5px}
+.nw .ni{display:grid;grid-template-columns:30px 1fr;gap:10px;align-items:start}
+.nw .ni .em{font-size:22px;line-height:1.1;text-align:center}
+.nw .ni b{display:block;font-weight:700;margin-bottom:2px}
+.nw .ni>div{min-width:0}
+.nw .ni span:not(.em){display:block;white-space:normal;font-size:14px;color:var(--muted);line-height:1.4}
+.nw.latest{border:2px solid var(--tape)}
 .theme:focus-visible{outline:3px solid var(--tape);outline-offset:2px}
 header .ht{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
 header h1{font-size:clamp(16px,5vw,26px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -445,6 +462,7 @@ table.lt th:last-child{padding-right:8px}
       <h1>HC Vorpommern-<span>Greifswald</span></h1>
       <div class="eyebrow">Mannschafts-App · weibl. Jugend C &amp; D</div>
     </div>
+    <button class="theme news" id="news" type="button" aria-label="Was ist neu in der App?" title="Was ist neu?"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg><i class="ndot" aria-hidden="true"></i></button>
     <button class="theme" id="theme" type="button" aria-label="Hell- oder Dunkelmodus"></button>
   </header>
 
@@ -934,6 +952,37 @@ function powertime(k,p){
 }
 
 // Kader: alle Spielerinnen aus den Spielberichten; zuerst Torhüterinnen, dann aufsteigend nach Anzahl Spiele
+/* "Was ist neu?" (Knopf ✨ oben rechts). Neuester Eintrag zuerst. Neuer Eintrag = roter Punkt am Knopf,
+   bis man ihn einmal geöffnet hat (localStorage hcvg-news). Texte einfach halten, für Eltern und Großeltern. */
+const NEWS=[
+ {id:"2026-11-15",date:"15. November 2026",title:"Live dabei, auch von zu Hause",items:[
+  ["📡","Spielstand fast in Echtzeit","Während des Spiels erneuert sich der Spielstand etwa alle 30 Sekunden von selbst, mit Spielminute und Halbzeitstand. Gedacht für alle, die nicht in der Halle sein können: verletzte Spielerinnen, Geschwister, Oma und Opa. Einfach die App offen lassen, neu laden ist nicht nötig."],
+  ["✅","Endstand erst nach dem Abpfiff","Solange das Spiel läuft, steht dort „Live“ oder „Letzter Stand“ mit Uhrzeit. So denkt niemand mehr, das Spiel sei schon vorbei."],
+  ["🎨","Jede Jugend hat ihre Farbe","D-Jugend in hellerem Blau, C-Jugend in dunklem Blau: auf den Spielkarten, den Reitern oben und den Jugend-Seiten."],
+  ["⭐","Spieltag steht oben","Die Mannschaft, die heute spielt, steht auf der Startseite ganz oben und ist gelb umrandet."],
+  ["🔎","Gegner-Check bleibt bis Sonntagabend","Auch während des Spiels lassen sich die Rückennummern der gefährlichsten Gegnerinnen nachschauen. Erst am Montag springt der Check zum nächsten Gegner."],
+  ["🎂","Kuchen- und Capri-Alarm für beide Jugenden","Schaffen C und D beide das 30. oder 40. Tor, gibt es zwei Kacheln mit Jugend-Schild. Dazu viele neue Sprüche, die bei jedem Öffnen wechseln."]]},
+ {id:"2026-11-13",date:"13. November 2026",title:"Spielstand am Wochenende",items:[
+  ["⏱️","Spielstand auf der Startseite","Ab Anwurf zeigt die Spielkarte den aktuellen Stand, danach das Ergebnis. Die Karte bleibt bis Sonntagabend stehen."],
+  ["🗺️","Route direkt zur Halle","Der Knopf „Route“ führt jetzt genau zur Hallenadresse."]]},
+ {id:"2026-11-10",date:"10. November 2026",title:"Training",items:[
+  ["📢","Wer trainiert wann?","Wechselt die Jugend beim Training, steht das im WhatsApp-Channel der Mannschaft. Die App weist darauf hin."]]},
+ {id:"2026-11-08",date:"8. November 2026",title:"Die App ist da",items:[
+  ["🤾‍♀️","Spielkarten","Nächstes Spiel mit Treff, Anwurf, Route und einer fertigen Einladung zum Teilen."],
+  ["📅","Kalender-Abo","Alle Spiele und Trainings automatisch im eigenen Kalender."],
+  ["🎂","Kuchen- und Capri-Sonne-Alarm","Wer das 30. Tor wirft, bringt Kuchen mit. Beim 40. Tor gibt es Capri-Sonne."],
+  ["📊","Ergebnisse, Tabellen und Analyse","Mit Spielverlauf, Torschützinnen und Gegner-Check."],
+  ["👥","Kader","Teamfoto antippen und die Mannschaften ansehen."],
+  ["🌙","Hell und dunkel","Oben rechts umschalten."]]}
+];
+const NEWS_VER=NEWS[0].id;
+const newsSeen=()=>{ try{return localStorage.getItem("hcvg-news")===NEWS_VER;}catch(e){return true;} };
+function viewNews(){
+  return `<section class="sec"><button class="btn line" data-back="1" style="align-self:flex-start">← Zurück</button><h2>Was ist neu?</h2></section>`
+   + NEWS.map((n,i)=>`<section class="card nw${i===0?" latest":""}"><div class="nh"><span class="nd">${esc(n.date)}</span>${i===0?'<span class="nb">Neu</span>':""}</div><h3>${esc(n.title)}</h3>
+     ${n.items.map(([em,t,x])=>`<div class="ni"><span class="em" aria-hidden="true">${em}</span><div><b>${esc(t)}</b><span>${esc(x)}</span></div></div>`).join("")}</section>`).join("");
+}
+
 function viewKader(){
   let html=`<section class="sec"><button class="btn line" data-back="1" style="align-self:flex-start">← Zurück</button><h2>Unsere Mannschaften</h2></section>`;
   for(const k of ["D","C"]){
@@ -1432,7 +1481,8 @@ function render(){
   document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-selected",b.dataset.view===current));
   const tk=current==="D"||current==="C"?current:current==="ana"?st.ana:"";
   view.classList.toggle("tD",tk==="D"); view.classList.toggle("tC",tk==="C");
-  view.innerHTML = current==="us"?viewUs():current==="kader"?viewKader():current==="ana"?viewAnalysis():viewLeague(current);
+  const nb=document.getElementById("news"); if(nb) nb.setAttribute("aria-pressed",current==="neu");
+  view.innerHTML = current==="us"?viewUs():current==="kader"?viewKader():current==="neu"?viewNews():current==="ana"?viewAnalysis():viewLeague(current);
   view.classList.remove("anim");
   if(animNext){ [...view.children].forEach((el,i)=>el.style.setProperty("--i",Math.min(i,8))); void view.offsetWidth; view.classList.add("anim"); }
   animNext=false;
@@ -1483,6 +1533,12 @@ view.addEventListener("click",e=>{
 const SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>';
 const MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>';
 const isDark=()=>document.documentElement.dataset.theme?document.documentElement.dataset.theme==="dark":matchMedia("(prefers-color-scheme: dark)").matches;
+const newsBtn=document.getElementById("news");
+newsBtn.classList.toggle("unseen",!newsSeen());
+newsBtn.addEventListener("click",()=>{
+  if(current==="neu"){ current="us"; } else { current="neu"; try{localStorage.setItem("hcvg-news",NEWS_VER);}catch(e){} newsBtn.classList.remove("unseen"); }
+  animNext=true; render(); window.scrollTo({top:0});
+});
 const themeBtn=document.getElementById("theme");
 function paintTheme(){ const d=isDark(); themeBtn.innerHTML=d?SUN:MOON; themeBtn.setAttribute("aria-label",d?"Hellen Modus einschalten":"Dunklen Modus einschalten"); }
 themeBtn.addEventListener("click",()=>{ const t=isDark()?"light":"dark"; document.documentElement.dataset.theme=t; try{localStorage.setItem("hcvg-theme",t);}catch(e){} paintTheme(); });

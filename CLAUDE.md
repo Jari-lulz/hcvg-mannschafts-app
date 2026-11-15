@@ -66,6 +66,7 @@ powershell -ExecutionPolicy Bypass -File tools\update-data.ps1
 - Ergebnisse: Spiel antippen → Halbzeit, Schiris, Spielverlauf-Grafik, **Spieleinschätzung** (`gameNotes`: „👍 Das lief gut“ / „💪 Daran arbeiten wir“, je max. 3 Punkte, nur aus nuLiga-Daten, nur unsere Spiele), Torschützinnen.
 - Kader (Banner antippen, `viewKader`): Torhüterinnen zuerst (`KEEPERS`, von Hand: D Larissa L., Frieda D.; C Marleen K. → „🧤 Torhüterin · Hält das Team im Spiel“), danach aufsteigend nach Anzahl Spiele. Sonst „Torgefährlich in Minute X bis Y“.
 - Animationen: Einblenden, Banner-Wörter, Countdown-Puls, Kuchen wackelt, Capri hüpft, Teilen-Ring, Balken wachsen, Spielverlauf zeichnet sich, Kader/Tabelle laufen ein. Alles aus bei `prefers-reduced-motion`.
+- **„Was ist neu?“** (✨-Knopf oben rechts neben dem Hell/Dunkel-Schalter, Ansicht `neu`, `viewNews`): Liste `NEWS` in `index.html`, neuester Eintrag zuerst, einfache Sprache für Eltern und Großeltern. Neuer Eintrag (neue `id`) = roter Punkt am Knopf, bis er einmal geöffnet wurde (`hcvg-news` in localStorage). **Bei sichtbaren Neuerungen dort einen Eintrag ergänzen.**
 - Hell/Dunkel-Schalter (`hcvg-theme` in localStorage), `color-scheme: light dark` gegen erzwungenen Dunkelmodus (Samsung).
 - Link-Vorschau (Open Graph, `img/vorschau.jpg`), Startbildschirm-Name „HC Vorpommern-Greifswald“ (`manifest.webmanifest`).
 

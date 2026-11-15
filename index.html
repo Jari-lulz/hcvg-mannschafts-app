@@ -271,6 +271,7 @@ figure.hero:focus-visible{outline:3px solid var(--tape);outline-offset:2px}
 .cakeline div{display:flex;flex-direction:column;gap:2px;min-width:0}
 .cakeline small{font:700 11px/1.2 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .cakeline b{font:800 19px/1.1 var(--display);text-transform:uppercase;letter-spacing:.02em}
+.cakeline small .lgt{font-style:normal;display:inline-block;margin-right:6px;padding:2px 6px;border-radius:4px;background:#0f1c33;color:#fff;letter-spacing:.06em}
 .cakeline b i{font-style:normal;font:700 11px/1 var(--display);padding:2px 5px;border-radius:4px;background:var(--bg);color:var(--muted);vertical-align:middle}
 .cakeline span{font-size:13px;color:var(--muted)}
 .cakeline.due{background:var(--tape);border-style:solid;color:var(--tape-ink)}
@@ -466,7 +467,8 @@ const SHORT = {
  "Stralsunder HV II":"Stralsund II","HV Altentreptow":"Altentreptow","SV Motor Barth":"Barth",
  "Anklamer HV":"Anklam","Wolgaster HV 2000":"Wolgast","Platzhalter Endrundenspiele":"Gegner offen"
 };
-const LEN = {D:40, C:50};   // Spielzeit in Minuten
+const LEN = {D:40, C:50};   // Spielzeit in Minuten (D: 2×20, C: 2×25)
+const PAUSE = 10;           // Halbzeitpause in Minuten
 
 /* ---------- Daten aus data.js ---------- */
 const DATA = window.HCVG_DATA;
@@ -498,8 +500,12 @@ function toGame(r,lg){
   if(time==="00:00" && !loc) time="";
   let dt=null;
   if(date){const [d,m,y]=date.split(".").map(Number);const [hh,mm]=(time||"00:00").split(":").map(Number);dt=new Date(y,m-1,d,hh,mm);}
-  return {dt,date,time,loc,home,away,res,note:note||"",mid,ref:ref||"",lg,mine:home===US||away===US};
+  // nuLiga trägt schon während des Spiels einen vorläufigen Stand ein (z. B. "0:0").
+  // Als Ergebnis zählt er erst mit Spielbericht (mid) – oder wenn das Spiel lange vorbei ist.
+  const fin=resFinal(res,mid,dt);
+  return {dt,date,time,loc,home,away,res:fin?res:"",prov:fin?"":res,note:note||"",mid,ref:ref||"",lg,mine:home===US||away===US};
 }
+function resFinal(res,mid,dt){ return !!res&&(!!mid||!dt||Date.now()>dt.getTime()+6*3600e3); }
 const ALL = Object.entries(LEAGUES).flatMap(([k,L])=>L.games.map(r=>toGame(r,k)));
 const report = g => g.mid ? LEAGUES[g.lg].reports?.[g.mid] : null;
 
@@ -731,13 +737,24 @@ function liveFor(g){
   return {h:sw?e[4]:e[3], a:sw?e[3]:e[4], live:e[5], hh:sw?e[7]:e[6], ha:sw?e[6]:e[7]};
 }
 // Zustand der Karte: vor dem Spiel, läuft, vorbei
+// Zeitpunkt des Datenstands (data.js "updated": "15.11.2026, 11:24 Uhr")
+function dataAt(){ const m=/(\d+)\.(\d+)\.(\d+),\s*(\d+):(\d+)/.exec(DATA.updated||""); return m?new Date(+m[3],m[2]-1,+m[1],+m[4],+m[5]).getTime():0; }
+// "Endstand" nur, wenn das Spiel sicher vorbei ist: Ergebnis mit Spielbericht, oder der Live-Ticker
+// meldet nach der regulären Spielzeit (2 Halbzeiten + Pause) kein laufendes Spiel mehr.
+// Sonst heißt ein Stand "Live" / "Spiel läuft" / "Letzter Stand" – mit Uhrzeit des Abrufs.
 function cardState(g){
-  const n=now().getTime(), start=g.dt.getTime(), end=start+(LEN[g.lg]+25)*60e3, lv=liveFor(g);
+  const n=now().getTime(), start=g.dt.getTime(), due=start+(LEN[g.lg]+PAUSE)*60e3, lv=liveFor(g), at=dataAt();
+  const res=(h,a)=>{ const us=g.home===US?h-a:a-h; return us>0?"Sieg":us<0?"Niederlage":"Remis"; };
   if(g.res){ const o=outcome(g); return {k:"end",score:g.res.replace(":"," : "),label:"Endstand",sub:o==="w"?"Sieg":o==="l"?"Niederlage":o?"Remis":""}; }
-  if(lv&&lv.live) return {k:"live",score:`${lv.h} : ${lv.a}`,label:"Live",sub:lv.hh+lv.ha>0?`Halbzeit ${lv.hh}:${lv.ha}`:"1. Halbzeit"};
+  const stand=at?` · Stand ${hhmm(new Date(at))}`:"";
+  if(lv&&lv.live) return {k:"live",score:`${lv.h} : ${lv.a}`,label:"Live",sub:(lv.hh+lv.ha>0?`Halbzeit ${lv.hh}:${lv.ha}`:"1. Halbzeit")+stand};
   if(n<start) return {k:"pre"};
-  if(lv&&lv.h+lv.a>0) return n>end?{k:"end",score:`${lv.h} : ${lv.a}`,label:"Endstand",sub:"vorläufig"}:{k:"live",score:`${lv.h} : ${lv.a}`,label:"Spielstand",sub:"wird aktualisiert"};
-  return n<end?{k:"run",score:"– : –",label:"Spiel läuft",sub:"Spielstand folgt"}:{k:"wait",score:"– : –",label:"Spiel vorbei",sub:"Ergebnis folgt"};
+  if(lv&&lv.h+lv.a>0){
+    if(at>=due) return {k:"end",score:`${lv.h} : ${lv.a}`,label:"Endstand",sub:res(lv.h,lv.a)};
+    if(n>due+5*60e3) return {k:"live",score:`${lv.h} : ${lv.a}`,label:"Letzter Stand",sub:`von ${hhmm(new Date(at))} Uhr · Endstand folgt`};
+    return {k:"live",score:`${lv.h} : ${lv.a}`,label:"Spiel läuft",sub:`Stand ${hhmm(new Date(at))} Uhr · wird aktualisiert`};
+  }
+  return n<due+15*60e3?{k:"run",score:"– : –",label:"Spiel läuft",sub:"Spielstand folgt"}:{k:"wait",score:"– : –",label:"Spiel vorbei",sub:"Ergebnis folgt"};
 }
 function nextCard(k){
   const L=LEAGUES[k];
@@ -816,9 +833,8 @@ function cakeTile(){
     const wk=Math.floor(Date.now()/(7*864e5));
     return `<section class="cakeline" aria-label="Kuchen-Alarm"><span class="em" aria-hidden="true">🎂</span><div><small>Kuchen-Alarm · 30. Tor</small><b>Noch frei!</b><span>${esc(CAKE_EMPTY[wk%CAKE_EMPTY.length])}</span></div></section>`;
   }
-  const names=due.map(c=>`${esc(pName(c.name,US))} <i>${c.k}</i>`).join(" &amp; ");
-  const c0=due[0];
-  return `<section class="cakeline due" aria-label="Kuchen-Alarm"><span class="em" aria-hidden="true">🎂</span><div><small>Kuchen-Alarm · 30. Tor</small><b>${names} ${due.length>1?"bringen":"bringt"} Kuchen mit!</b><span>Glückwunsch zum 30. Tor! ${esc(cakeLine(c0))}</span></div></section>`;
+  // Eine Kachel je Jugend – haben C und D beide das 30. Tor geschafft, erscheinen zwei Kacheln.
+  return due.map(c=>`<section class="cakeline due" aria-label="Kuchen-Alarm ${c.k}-Jugend"><span class="em" aria-hidden="true">🎂</span><div><small><i class="lgt">${c.k}-Jugend</i>Kuchen-Alarm · 30. Tor</small><b>${esc(pName(c.name,US))} bringt Kuchen mit!</b><span>Glückwunsch zum 30. Tor gegen ${esc(c.opp)}! ${esc(cakeLine(c))}</span></div></section>`).join("");
 }
 
 /* Capri-Sonne-Regel (Wunsch der Mädels): Wer in einem Spiel das 40. Tor wirft, bringt einen 10er-Träger Capri-Sonne mit.
@@ -841,9 +857,8 @@ function capriTile(){
     const wk=Math.floor(Date.now()/(7*864e5));
     return `<section class="cakeline capri" aria-label="Capri-Sonne-Alarm"><span class="em" aria-hidden="true">🧃</span><div><small>Capri-Sonne-Alarm · 40. Tor</small><b>Noch frei!</b><span>${esc(CAPRI_EMPTY[wk%CAPRI_EMPTY.length])}</span></div></section>`;
   }
-  const names=due.map(c=>`${esc(pName(c.name,US))} <i>${c.k}</i>`).join(" &amp; ");
-  const c0=due[0], line=CAPRI_LINES[[...c0.name+c0.k].reduce((s,ch)=>s+ch.charCodeAt(0),0)%CAPRI_LINES.length];
-  return `<section class="cakeline capri due" aria-label="Capri-Sonne-Alarm"><span class="em" aria-hidden="true">🧃</span><div><small>Capri-Sonne-Alarm · 40. Tor</small><b>${names} ${due.length>1?"bringen":"bringt"} Capri-Sonne mit!</b><span>Glückwunsch zum 40. Tor! Ein 10er-Träger, bitte. ${esc(line)}</span></div></section>`;
+  const line=c=>CAPRI_LINES[[...c.name+c.k].reduce((s,ch)=>s+ch.charCodeAt(0),0)%CAPRI_LINES.length];
+  return due.map(c=>`<section class="cakeline capri due" aria-label="Capri-Sonne-Alarm ${c.k}-Jugend"><span class="em" aria-hidden="true">🧃</span><div><small><i class="lgt">${c.k}-Jugend</i>Capri-Alarm · 40. Tor</small><b>${esc(pName(c.name,US))} bringt Capri-Sonne mit!</b><span>Glückwunsch zum 40. Tor gegen ${esc(c.opp)}! Ein 10er-Träger, bitte. ${esc(line(c))}</span></div></section>`).join("");
 }
 
 // Kalender zum Abonnieren – die Dateien erzeugt tools/update-data.ps1
@@ -1169,10 +1184,16 @@ const playerRow=(p,i,val,extra="")=>`<tr class="${p.team===US?"mine":""}"><td>${
 const playerTable=(head,rows)=>`<div class="tbl-wrap"><table class="ptbl"><thead><tr><th>#</th><th>Name</th><th>${head[0]}</th><th>${head[1]}</th></tr></thead><tbody>${rows||`<tr><td></td><td class="note">Noch keine Daten</td><td></td><td></td></tr>`}</tbody></table></div>`;
 
 function viewOpponent(k){
-  const g=upcoming(ALL.filter(x=>x.mine&&x.lg===k)).find(x=>x.dt&&realTeam(x.home)&&realTeam(x.away));
+  // Gleiches Spiel wie auf der Startseite: der Gegner dieser Woche bleibt bis Sonntag 23:59 Uhr stehen
+  // (auch während und nach dem Spiel), danach kommt der nächste.
+  const real=x=>x&&x.dt&&realTeam(x.home)&&realTeam(x.away), cg=cardGame(k);
+  const g=real(cg)?cg:upcoming(ALL.filter(x=>x.mine&&x.lg===k)).find(real);
   if(!g) return `<section class="sec"><div class="empty">Zurzeit ist kein Gegner angesetzt.</div></section>`;
   const opp=g.home===US?g.away:g.home, P=teamProfile(k,opp), M=teamProfile(k,US), on=esc(sn(opp));
-  let html=`<section class="board" aria-label="Nächster Gegner"><div class="when"><span class="lg">${k}-Jugend · nächster Gegner</span><span class="count${countdown(g.dt)==="Matchday"?" md":""}">${countdown(g.dt)==="Matchday"?"🔥 Matchday":countdown(g.dt)}</span></div>
+  const begun=g.dt<=now(), cs=begun?cardState(g):null;
+  const chip=!begun?`<span class="count${countdown(g.dt)==="Matchday"?" md":""}">${countdown(g.dt)==="Matchday"?"🔥 Matchday":countdown(g.dt)}</span>`
+    : cs.k==="live"||cs.k==="run"?`<span class="count md">● Live</span>`:`<span class="count">Gespielt</span>`;
+  let html=`<section class="board" aria-label="Gegner"><div class="when"><span class="lg">${k}-Jugend · ${begun?"Gegner dieser Woche":"nächster Gegner"}</span>${chip}</div>
     <div class="date">${on}</div>
     <p class="hall" style="margin:0">${WDL[g.dt.getDay()]}, ${g.dt.getDate()}. ${MONL[g.dt.getMonth()]}${g.time?`, ${esc(g.time)} Uhr`:""} · ${g.home===US?"Heimspiel":"Auswärts"}${P?`<br>Tabellenplatz ${P.rank} · ${esc(P.pts)} Punkte · ${P.t.w} S / ${P.t.x} U / ${P.t.l} N`:""}</p></section>`;
   if(!P) return html+`<section class="sec"><div class="empty">Von ${on} gibt es noch keine Spielberichte.</div></section>`;
@@ -1340,11 +1361,12 @@ async function refreshLive(){
   try{
     const txt=await (await fetch("data.js?t="+Date.now(),{cache:"no-store"})).text();
     const j=JSON.parse(txt.slice(txt.indexOf("{"),txt.lastIndexOf("}")+1));
+    if(j.updated) DATA.updated=j.updated;
     for(const k of ["C","D"]){
       const nl=j.leagues&&j.leagues[k]; if(!nl) continue;
       LEAGUES[k].live=nl.live||[];
       const g=cardGame(k);
-      if(g&&!g.res){ const row=(nl.games||[]).find(r=>r[3]===g.home&&r[4]===g.away&&r[5]); if(row) g.res=row[5]; }
+      if(g&&!g.res){ const row=(nl.games||[]).find(r=>r[3]===g.home&&r[4]===g.away&&r[5]); if(row){ if(resFinal(row[5],row[7],g.dt)){ g.res=row[5]; g.mid=row[7]; g.prov=""; } else g.prov=row[5]; } }
     }
     if(current==="us") for(const k of ["C","D"]){ const el=view.querySelector(`[data-card="${k}"]`); if(el) el.outerHTML=nextCard(k); }
   }catch(e){}

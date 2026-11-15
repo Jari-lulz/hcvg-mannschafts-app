@@ -469,6 +469,7 @@ const SHORT = {
 };
 const LEN = {D:40, C:50};   // Spielzeit in Minuten (D: 2×20, C: 2×25)
 const PAUSE = 10;           // Halbzeitpause in Minuten
+let LIVE_AT = 0;            // Zeit des letzten Live-Stands vom Cloudflare-Vermittler (ms)
 
 /* ---------- Daten aus data.js ---------- */
 const DATA = window.HCVG_DATA;
@@ -734,7 +735,7 @@ function liveFor(g){
   const e=(LEAGUES[g.lg].live||[]).find(e=>{const d=new Date(e[2]);return d.toDateString()===g.dt.toDateString()&&(e[0]===US||e[1]===US);});
   if(!e) return null;
   const sw=(e[0]===US)!==(g.home===US);   // Reihenfolge wie in unserer Karte
-  return {h:sw?e[4]:e[3], a:sw?e[3]:e[4], live:e[5], hh:sw?e[7]:e[6], ha:sw?e[6]:e[7]};
+  return {h:sw?e[4]:e[3], a:sw?e[3]:e[4], live:e[5], hh:sw?e[7]:e[6], ha:sw?e[6]:e[7], sec:e[8]||0};
 }
 // Zustand der Karte: vor dem Spiel, läuft, vorbei
 // Zeitpunkt des Datenstands (data.js "updated": "15.11.2026, 11:24 Uhr")
@@ -743,10 +744,10 @@ function dataAt(){ const m=/(\d+)\.(\d+)\.(\d+),\s*(\d+):(\d+)/.exec(DATA.update
 // meldet nach der regulären Spielzeit (2 Halbzeiten + Pause) kein laufendes Spiel mehr.
 // Sonst heißt ein Stand "Live" / "Spiel läuft" / "Letzter Stand" – mit Uhrzeit des Abrufs.
 function cardState(g){
-  const n=now().getTime(), start=g.dt.getTime(), due=start+(LEN[g.lg]+PAUSE)*60e3, lv=liveFor(g), at=dataAt();
+  const n=now().getTime(), start=g.dt.getTime(), due=start+(LEN[g.lg]+PAUSE)*60e3, lv=liveFor(g), at=Math.max(dataAt(),LIVE_AT);
   const res=(h,a)=>{ const us=g.home===US?h-a:a-h; return us>0?"Sieg":us<0?"Niederlage":"Remis"; };
   if(g.res){ const o=outcome(g); return {k:"end",score:g.res.replace(":"," : "),label:"Endstand",sub:o==="w"?"Sieg":o==="l"?"Niederlage":o?"Remis":""}; }
-  const stand=at?` · Stand ${hhmm(new Date(at))}`:"";
+  const stand=lv&&lv.sec?` · ${Math.min(Math.ceil(lv.sec/60),LEN[g.lg])}. Min.`:at?` · Stand ${hhmm(new Date(at))}`:"";
   if(lv&&lv.live) return {k:"live",score:`${lv.h} : ${lv.a}`,label:"Live",sub:(lv.hh+lv.ha>0?`Halbzeit ${lv.hh}:${lv.ha}`:"1. Halbzeit")+stand};
   if(n<start) return {k:"pre"};
   if(lv&&lv.h+lv.a>0){
@@ -1349,30 +1350,51 @@ function sizeFold(){
 }
 window.addEventListener("resize",()=>{ if(current==="us"&&window.innerWidth!==foldW) sizeFold(); });
 
-// Während eines Spiels (15 Min. vor Anwurf bis 90 Min. nach Spielende): alle 2 Minuten den neuesten
-// Datenstand holen und nur die beiden Spielkarten austauschen – die Seite springt dabei nicht.
-// Neue Daten kommen am Spieltag etwa alle 10 Minuten (GitHub-Update), schneller lohnt sich nicht.
+// Während eines Spiels (15 Min. vor Anwurf bis 90 Min. nach Spielende):
+// - alle 30 Sekunden den Live-Stand vom Cloudflare-Vermittler holen (LIVE_URL, worker/live.js),
+// - alle 2 Minuten zusätzlich data.js (nuLiga-Ergebnis, Spielbericht).
+// Getauscht werden nur die beiden Spielkarten – die Seite springt dabei nicht.
+const LIVE_URL = "https://hcvg-live.hcvg-mannschaft.workers.dev/";   // Cloudflare-Worker (worker/live.js), leer = nur data.js
+let liveTick = 0;
 function liveWindow(){
   const n=Date.now();
   return ["C","D"].some(k=>{ const g=cardGame(k); if(!g||g.res) return false; const t=g.dt.getTime(); return n>t-15*60e3&&n<t+(LEN[k]+115)*60e3; });
 }
-async function refreshLive(){
-  if(document.hidden||!liveWindow()) return;
+function redrawCards(){ if(current==="us") for(const k of ["C","D"]){ const el=view.querySelector(`[data-card="${k}"]`); if(el) el.outerHTML=nextCard(k); } }
+async function refreshWorker(){
+  if(!LIVE_URL) return false;
+  try{
+    const j=await (await fetch(LIVE_URL,{cache:"no-store"})).json();
+    if(!j.leagues) return false;
+    for(const k of ["C","D"]) if(j.leagues[k]) LEAGUES[k].live=j.leagues[k];
+    LIVE_AT=j.t||Date.now();
+    return true;
+  }catch(e){ return false; }
+}
+async function refreshData(){
   try{
     const txt=await (await fetch("data.js?t="+Date.now(),{cache:"no-store"})).text();
     const j=JSON.parse(txt.slice(txt.indexOf("{"),txt.lastIndexOf("}")+1));
     if(j.updated) DATA.updated=j.updated;
+    const newer=dataAt()>LIVE_AT;   // Live-Stand aus data.js nur, wenn er neuer ist als der vom Vermittler
     for(const k of ["C","D"]){
       const nl=j.leagues&&j.leagues[k]; if(!nl) continue;
-      LEAGUES[k].live=nl.live||[];
+      if(newer) LEAGUES[k].live=nl.live||[];
       const g=cardGame(k);
       if(g&&!g.res){ const row=(nl.games||[]).find(r=>r[3]===g.home&&r[4]===g.away&&r[5]); if(row){ if(resFinal(row[5],row[7],g.dt)){ g.res=row[5]; g.mid=row[7]; g.prov=""; } else g.prov=row[5]; } }
     }
-    if(current==="us") for(const k of ["C","D"]){ const el=view.querySelector(`[data-card="${k}"]`); if(el) el.outerHTML=nextCard(k); }
   }catch(e){}
 }
-setInterval(refreshLive,120e3);
-document.addEventListener("visibilitychange",()=>{ if(!document.hidden) refreshLive(); });
+async function refreshLive(force){
+  if(document.hidden||!liveWindow()) return;
+  const ok=await refreshWorker();
+  if(force||!ok||liveTick%4===0) await refreshData();
+  liveTick++;
+  redrawCards();
+}
+setInterval(refreshLive,30e3);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) refreshLive(true); });
+setTimeout(()=>refreshLive(false),1500);
 function render(){
   document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-selected",b.dataset.view===current));
   view.innerHTML = current==="us"?viewUs():current==="kader"?viewKader():current==="ana"?viewAnalysis():viewLeague(current);

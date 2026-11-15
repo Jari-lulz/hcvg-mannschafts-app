@@ -15,7 +15,7 @@ Mannschafts-App für die weibliche D- und C-Jugend des HC Vorpommern-Greifswald 
 - Von Hand gepflegt in `index.html`: `SHORT` (Kurznamen), `LEN` (Spielzeit je Liga).
 - Trainingszeiten: `tools/training.json` (einzige Stelle, gilt für App und Kalender). `from`/`until` = Zeitraum der wöchentlichen Kalender-Serien. Nach Änderung: Skript laufen lassen oder einfach pushen (der Workflow läuft bei jedem Push).
 - Hallen mit Adresse: `tools/halls.json` (einzige Liste). Das Skript schreibt sie als `hallInfo` nach `data.js`, die App liest sie von dort (`HALLS`). Neue Halle = Eintrag dort ergänzen.
-- Kalender-Abos: `kalender.ics` (beide), `kalender-c.ics`, `kalender-d.ics`, erzeugt vom Skript bei jedem Lauf. Termin = Treff (1 Std. vor Anwurf) bis ca. 40 Min. nach Spielende, mit Halle, Adresse und Google-Maps-Link. Dazu die Trainings als wöchentliche Serientermine (C-Kalender: Di + Fr, D-Kalender: Do + Fr, beide: alle). Kachel „Spiele in deinen Kalender“ auf der Startseite (webcal-Link fürs iPhone, Google-Kalender-Link, Adresse kopieren).
+- Kalender-Abos: `kalender.ics` (beide), `kalender-c.ics`, `kalender-d.ics`, erzeugt vom Skript bei jedem Lauf. Termin = Treff (1 Std. vor Anwurf) bis ca. 40 Min. nach Spielende, mit Halle, Adresse und Google-Maps-Link. Dazu die Trainings als wöchentliche Serientermine (Zuordnung je Tag aus `training.json`; bei Jugend `X` in beiden Kalendern). Kachel „Spiele in deinen Kalender“ auf der Startseite (webcal-Link fürs iPhone, Google-Kalender-Link, Adresse kopieren).
 - Eigenes Team: `US = "HC Vorpommern-Greifswald"`.
 
 ## Daten aktualisieren
@@ -33,11 +33,16 @@ powershell -ExecutionPolicy Bypass -File tools\update-data.ps1
 - Tabelle: `.../groupPage?championship=BHV+Ost+26%2F27&group=<id>`
 - Gesamtspielplan: `...&displayTyp=vorrunde&displayDetail=meetings`
 - Spielbericht: `.../groupMeetingReport?meeting=<id>&championship=...&group=<id>`
-- Live-Ticker: `https://hbde-live.liga.nu/nuScoreLive/#/groups/<id>`. Wird nur verlinkt (öffnet in neuem Tab), nicht eingebettet. Die REST-API (`/nuScoreLiveRestBackend/api/1/`) erlaubt keinen Zugriff von fremden Seiten (CORS).
+- Live-Ticker: `https://hbde-live.liga.nu/nuScoreLive/#/groups/<id>`. Wird verlinkt (Knopf „Live“). Die REST-API (`/nuScoreLiveRestBackend/api/1/`) erlaubt keinen Zugriff aus dem Browser von fremden Seiten (CORS), nur serverseitig (GitHub Actions).
+- **Fast-live Spielstand:** `update-data.ps1` holt pro Liga `.../api/1/meetings/<group>/time/<unix-sekunden auf 15 s gerundet>` und speichert unsere Spiele ±3 Tage als `leagues[k].live = [[Heim, Gast, Anwurf UTC ISO, Tore H, Tore G, live, HZ H, HZ G]]`. Der Workflow läuft dafür Sa/So zur Spielzeit alle 10 Minuten. Echtes Live (30 s) ginge nur über einen Vermittler (z. B. kostenloser Cloudflare Worker); vom User bewusst abgelehnt („fast live“ reicht).
 - handball.net (geprüft 11/2026): Vereinsseite `/club/0e22k3j` zeigt keine Teams, die API (`/api/new/...`) antwortet mit 403. Keine zusätzlichen Daten.
 
 ## Startseite
-- Banner, nächstes Spiel C-Jugend, nächstes Spiel D-Jugend (Treff = 1 Stunde vor Anwurf, Countdown, Route, Live-Ticker-Link), Kuchen-Zeile und die Trainingszeiten (mit Adresse und Google-Maps-Knopf).
+- Reihenfolge: Banner (Teamfoto, antippen = Kader), Spielkarte C-Jugend, Spielkarte D-Jugend, Kuchen-Alarm, Capri-Sonne-Alarm, „App teilen“, Trainingszeiten, Kalender-Kachel.
+- **Erster Bildschirm (`.fold`, `sizeFold()`):** Banner + beide Karten füllen am Handy (≤600 px breit) genau den ersten Bildschirm, Kuchen-Alarm beginnt darunter. Höhe wird einmal gemessen (nicht bei Adressleisten-Resize). Bei hohen Fenstern (Opera, Chrome) wachsen Foto (begrenzt, `max-height:min(46vw,260px)`) und Karten (`justify-content:space-evenly`) statt einer Lücke. Am PC kein Strecken. **Bei jeder Änderung an den Karten in mehreren Höhen testen (z. B. 740/820/880/1000 px).**
+- **Spielkarte (`nextCard`, `cardGame`, `cardState`, `liveFor`):** Das Spiel der laufenden Woche bleibt bis Sonntag 23:59 stehen, danach das nächste. Vor Anwurf: Treff (Anwurf − 1 h) und Anwurf. Ab Anwurf ersetzt eine Spielstand-Zeile in **gleicher Höhe** die Treff/Anwurf-Zeile: rot „● LIVE 12 : 9 · Halbzeit 8:6“, ohne Live-Daten „Spiel läuft · Spielstand folgt“, danach gelb „Endstand 24 : 17 · Sieg“. Während eines Spiels lädt die App alle 2 Minuten `data.js?t=…` nach und tauscht nur die Karten (`refreshLive`). Knöpfe: Route, Live, Gegner-Check, Teilen (Einladung als WhatsApp-Text: Datum, Anwurf, Treff, Halle, Route – ohne App-Link, ohne Liveticker).
+- **Route-Link (`mapsDest`/`mapsUrl`, im Skript `MapsLink`):** Adresse mit Hausnummer → nur Adresse; ohne Hausnummer → Hallenname + Adresse.
+- **„App teilen“ (`shareAppTile`):** teilt den App-Link mit kurzem Text (navigator.share, sonst wa.me).
 - Ergebnisse, Tabellen und Statistik stehen in den Reitern D-Jugend und C-Jugend.
 - Gelbe Karten und Zeitstrafen sind bei Jugendspielen anonym, also nur pro Mannschaft verfügbar.
 
@@ -51,8 +56,31 @@ powershell -ExecutionPolicy Bypass -File tools\update-data.ps1
 ## Kuchen-Regel (Startseite)
 - Wer in einem Spiel das 30. Mannschaftstor für uns wirft, bringt zum nächsten Training Kuchen mit.
 - Die Werferin steht nicht im nuLiga-Bericht. `Get-Scorer30` im Skript liest sie aus der nuScore-Ereignisliste (`.../nuScoreLiveRestBackend/api/1/events/<Bericht-ID>`, Code 4 = Tor, 5 = 7m-Tor, mit Spielstand und Name). Ergebnis: `leagues[k].cake = { Bericht-ID: "Vorname N." }`, zwischengespeichert in `tools/cache/cake-<id>.txt`.
-- Startseite (`cakeTile()`): immer eine kleine Zeile „Kuchen-Alarm · nächster Kuchen“. Gelb mit Namen, wenn im letzten Spiel einer Jugend das 30. Tor fiel und das Spiel höchstens 10 Tage her ist (`CAKE_FRESH_DAYS`), höchstens D und C zusammen. Sonst „Noch frei!“ mit einem wöchentlich wechselnden Spruch (`CAKE_EMPTY`).
-- Statistik je Jugend: „Kuchen-Chronik“ mit allen bisherigen 30. Toren.
+- Startseite (`cakeTile()`): immer eine kleine Zeile „Kuchen-Alarm · 30. Tor“. Gelb mit Namen, wenn im letzten Spiel einer Jugend das 30. Tor fiel und das Spiel höchstens 10 Tage her ist (`CAKE_FRESH_DAYS`), höchstens D und C zusammen. Sonst „Noch frei!“ mit einem wöchentlich wechselnden Spruch (`CAKE_EMPTY`).
+- Statistik je Jugend: „Kuchen- & Capri-Chronik“ mit allen bisherigen 30. und 40. Toren.
+- **Capri-Sonne-Alarm:** gleiches Prinzip für das 40. Tor (10er-Träger Capri-Sonne). `leagues[k].capri`, Cache `tools/cache/capri-<id>.txt`, `capriTile()`, orange.
+
+## Weitere Funktionen
+- Trainingszeiten: Jugend `X` in `training.json` = wechselt; dann keine Jugend-Schilder, sondern Hinweis „Welche Jugend trainiert? Steht im WhatsApp-Channel der Mannschaft“ (kein WhatsApp-Link!). Im Kalender in beiden Jugend-Kalendern als „Training C-/D-Jugend“.
+- Ergebnisse: Spiel antippen → Halbzeit, Schiris, Spielverlauf-Grafik, **Spieleinschätzung** (`gameNotes`: „👍 Das lief gut“ / „💪 Daran arbeiten wir“, je max. 3 Punkte, nur aus nuLiga-Daten, nur unsere Spiele), Torschützinnen.
+- Kader (Banner antippen, `viewKader`): Torhüterinnen zuerst (`KEEPERS`, von Hand: D Larissa L., Frieda D.; C Marleen K. → „🧤 Torhüterin · Hält das Team im Spiel“), danach aufsteigend nach Anzahl Spiele. Sonst „Torgefährlich in Minute X bis Y“.
+- Animationen: Einblenden, Banner-Wörter, Countdown-Puls, Kuchen wackelt, Capri hüpft, Teilen-Ring, Balken wachsen, Spielverlauf zeichnet sich, Kader/Tabelle laufen ein. Alles aus bei `prefers-reduced-motion`.
+- Hell/Dunkel-Schalter (`hcvg-theme` in localStorage), `color-scheme: light dark` gegen erzwungenen Dunkelmodus (Samsung).
+- Link-Vorschau (Open Graph, `img/vorschau.jpg`), Startbildschirm-Name „HC Vorpommern-Greifswald“ (`manifest.webmanifest`).
+
+## Workflow (GitHub Actions, `.github/workflows/update.yml`)
+- Sa/So 7:00–7:30 halbstündlich, Sa 8–19 und So 8–18 alle 10 Min., Sa abends halbstündlich bis 21:30, Mi 18:00, plus bei jedem Push. Committet `data.js`, `tools/cache`, `*.ics`; deployt `_site` (hängt `?v=RUN_ID` an `data.js`).
+
+## Arbeitsweise mit dem User
+- Antworten auf Deutsch, kurz und einfach (User ist nicht technisch). Vor größeren Änderungen fragt er manchmal erst nach Einschätzung: dann nichts ändern, nur antworten.
+- Datenschutz: keine Fotos mit erkennbaren Kindergesichtern, unsere Kinder nur mit Vornamen. Nicht „nicht öffentlich“ behaupten – richtig ist: nicht bei Google, nur mit Link, keine Nachnamen, keine Gesichter.
+- Commits über Git Bash mit Nachrichtendatei (`git commit -F`), Trailer `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Vorher `git pull --rebase`; Konflikte in erzeugten Dateien mit `checkout --theirs data.js kalender*.ics`. Git: `C:\Program Files\Git\cmd\git.exe`, gh: `C:\Program Files\GitHub CLI\gh.exe`.
+- Lokale Vorschau: kleines HttpListener-Skript auf `localhost:8801` (Ordner als Wurzel), im Browser-Fenster mit Handygröße testen.
+- Kostenlos bleiben (keine bezahlten Dienste).
+
+## Videos (nicht veröffentlicht, Ordner `screenshots/`)
+- `hcvg-mannschafts-app-promo.mp4`: Promo-Video (2:33, Stimme des Users per ElevenLabs, letzter Satz abgeschnitten, Outro mit Hinweis „Annie teilt App & Video in der Gruppe der Kids“, erstes Bild = Wappen, WhatsApp-Szene an „Opa“). Bausteine gesichert in `screenshots/video-werkzeug/` (`promo-bilder.ps1`, `render-promo.ps1`, `shots.json`, `transcribe.ps1`, Vorschau-Server `serve2.ps1`). Die Bild-Pfade in `shots.json` zeigen auf alte Browser-Screenshots im Claude-Ordner `tool-results`; für ein neues Video neue Screenshots machen. ffmpeg ist per winget installiert.
+- Geschäftsidee/Marktanalyse: eigener Ordner `Claude Projekte\mannschafts-app-geschaeftsidee`.
 
 ## Bilder
 - `img/logo.webp` (Vereinswappen, Kopf + Favicon), `img/team-kreis.jpg` (Mannschaftskreis von oben, kaum Gesichter; Banner auf der Startseite, auf 900px verkleinert).
